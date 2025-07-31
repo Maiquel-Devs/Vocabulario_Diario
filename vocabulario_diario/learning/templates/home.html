@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Página Inicial{% endblock %}
+
+{% block content %}
+  <h2>Bem-vindo(a) ao Vocabulário Diário, {{ user.username }}!</h2>
+  
+  <p>Você está logado e pronto para começar a sua jornada de aprendizado.</p>
+
+  <p>
+    <a href="#">Iniciar Sessão de Estudo</a>
+  </p>
+
+  <p>
+    <a href="{% url 'logout' %}">Sair</a>
+  </p>
+{% endblock %}
