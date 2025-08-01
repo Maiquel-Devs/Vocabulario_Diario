@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Sessão de Estudo{% endblock %}
+
+{% block content %}
+  <h2>Sessão de Estudo</h2>
+  
+  <div class="flashcard">
+    <h3>Qual a tradução de:</h3>
+    <h1>{{ word.text_english }}</h1>
+    
+    <form id="answer-form">
+      {% csrf_token %}
+      <input type="hidden" name="word_id" value="{{ word.id }}">
+      <input type="text" name="user_answer" placeholder="Digite sua resposta aqui" required autofocus>
+      <button type="submit">Verificar</button>
+    </form>
+    
+    <div id="feedback-section" style="margin-top: 20px;">
+      </div>
+  </div>
+
+  <hr>
+  <a href="{% url 'home' %}">Parar e Voltar para a Home</a>
+{% endblock %}
