@@ -3,23 +3,173 @@
 {% block title %}Sessão de Estudo{% endblock %}
 
 {% block content %}
-  <h2>Sessão de Estudo</h2>
+  <h2>
+    {% if is_training_session %}
+      Sessão de Treino Focado
+    {% else %}
+      Sessão de Estudo
+    {% endif %}
+  </h2>
   
-  <div class="flashcard">
+  <!-- Flashcard atual com a palavra sendo estudada -->
+  <div 
+    class="flashcard" 
+    data-next-url="{% if is_training_session %}{% url 'training_session' %}{% else %}{% url 'study_session' %}{% endif %}"
+  >
     <h3>Qual a tradução de:</h3>
     <h1>{{ word.text_english }}</h1>
-    
+
+    <!-- Formulário para o usuário digitar a resposta -->
     <form id="answer-form">
       {% csrf_token %}
       <input type="hidden" name="word_id" value="{{ word.id }}">
-      <input type="text" name="user_answer" placeholder="Digite sua resposta aqui" required autofocus>
+      <input 
+        type="text" 
+        id="user-answer-input" 
+        name="user_answer" 
+        placeholder="Digite sua resposta aqui" 
+        required 
+        autofocus
+      >
       <button type="submit">Verificar</button>
     </form>
-    
-    <div id="feedback-section" style="margin-top: 20px;">
-      </div>
+
+    <!-- Onde aparecerá o feedback após a resposta -->
+    <div id="feedback-section" style="margin-top: 20px;"></div>
   </div>
 
   <hr>
-  <a href="{% url 'home' %}">Parar e Voltar para a Home</a>
+
+  <!-- Rodapé com opção de sair ou marcar a palavra como conhecida -->
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <a href="{% url 'home' %}">Parar e Voltar para a Home</a>
+
+    {% if is_training_session %}
+      <!-- Botão extra para remover a palavra da sessão de treino -->
+      <button 
+        id="remove-from-training-btn" 
+        data-word-id="{{ word.id }}" 
+        class="button" 
+        style="background-color: #f0ad4e; border-color: #eea236;"
+      >
+        Já sei esta palavra
+      </button>
+    {% endif %}
+  </div>
 {% endblock %}
+
+{% block script %}
+<script>
+  // Recupera a URL para o próximo cartão direto do HTML
+  const flashcardDiv = document.querySelector('.flashcard');
+  const proximoCartaoUrl = flashcardDiv.dataset.nextUrl;
+
+  // === Envio de resposta do usuário ===
+  function handleFormSubmit(event) {
+    event.preventDefault(); // Impede o comportamento padrão do formulário
+
+    // Pega dados necessários
+    const answerInput = document.getElementById('user-answer-input');
+    const userAnswer = answerInput.value;
+    const form = event.target;
+    const wordId = form.querySelector('input[name="word_id"]').value;
+    const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+    // Envia a resposta para o backend (view 'check_answer')
+    fetch("{% url 'check_answer' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ 'word_id': wordId, 'user_answer': userAnswer })
+    })
+    .then(response => response.json())
+    .then(data => {
+      const feedbackSection = document.getElementById('feedback-section');
+      document.getElementById('answer-form').style.display = 'none'; // Esconde o formulário
+
+      // Mostra o feedback ao usuário com base na resposta
+      if (data.correct) {
+        feedbackSection.innerHTML = `
+          <h3 style="color: green;">✅ Correto!</h3>
+          <a href="${proximoCartaoUrl}" class="button">Ir para o próximo cartão</a>
+        `;
+      } else {
+        feedbackSection.innerHTML = `
+          <h3 style="color: red;">❌ Incorreto.</h3>
+          <p>A resposta certa era: "<strong>${data.correct_answer}</strong>"</p>
+          <div style="margin-top: 15px;">
+            <button id="define-correct-btn" data-word-id="${wordId}" class="button">Definir como correta</button>
+            <a href="${proximoCartaoUrl}" class="button">Ir para a próxima palavra</a>
+          </div>
+        `;
+
+        // Habilita o botão "Definir como correta"
+        document.getElementById('define-correct-btn').addEventListener('click', handleMarkAsCorrect);
+      }
+    });
+  }
+
+  // === Botão "Definir como correta" ===
+  function handleMarkAsCorrect(event) {
+    const button = event.target;
+    const wordId = button.dataset.wordId;
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+    // Envia pedido para considerar a resposta do usuário como correta
+    fetch("{% url 'mark_as_correct' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ 'word_id': wordId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        // Redireciona para o próximo cartão
+        window.location.href = proximoCartaoUrl;
+      }
+    });
+  }
+
+  // === Botão "Já sei esta palavra" ===
+  function handleRemoveFromTraining(event) {
+    const button = event.target;
+    const wordId = button.dataset.wordId;
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+    // Evita múltiplos cliques
+    button.disabled = true;
+    button.textContent = "Removendo...";
+
+    // Envia requisição para remover a palavra do treino
+    fetch("{% url 'remove_from_training' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ 'word_id': wordId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        // Vai direto para o próximo cartão de treino
+        window.location.href = "{% url 'training_session' %}";
+      }
+    });
+  }
+
+  // === Conecta os eventos ===
+  document.getElementById('answer-form').addEventListener('submit', handleFormSubmit);
+
+  // Conecta botão de "Já sei esta palavra", se existir na página
+  const removeBtn = document.getElementById('remove-from-training-btn');
+  if (removeBtn) {
+    removeBtn.addEventListener('click', handleRemoveFromTraining);
+  }
+</script>
+{% endblock script %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Sessão Concluída{% endblock %}
+
+{% block content %}
+  <h2>Sessão Concluída!</h2>
+  
+  <div style="text-align: center; margin-top: 30px;">
+    <h3>🎉 Parabéns! 🎉</h3>
+    <p>Você não tem mais palavras para revisar ou aprender no momento.</p>
+    <p>Volte mais tarde para mais!</p>
+
+    <a href="{% url 'home' %}" class="button" style="margin-top: 20px;">Voltar para a Página Inicial</a>
+  </div>
+{% endblock %}

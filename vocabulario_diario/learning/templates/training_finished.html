@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Treino Concluído{% endblock %}
+
+{% block content %}
+  <h2>Treino Concluído!</h2>
+  
+  <div style="text-align: center; margin-top: 30px;">
+    <h3>💪 Excelente! 💪</h3>
+    <p>Você revisou todas as palavras da sua lista de treino.</p>
+    <p>Continue assim para dominar todo o vocabulário!</p>
+
+    <a href="{% url 'dashboard' %}" class="button" style="margin-top: 20px;">Ver Meu Painel</a>
+  </div>
+{% endblock %}

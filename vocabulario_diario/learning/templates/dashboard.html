@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Painel de Controle{% endblock %}
+
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2>Meu Desempenho</h2>
+    <a href="{% url 'training_session' %}" class="button">Iniciar Treino de Palavras Erradas</a>
+  </div>
+  
+  <div class="stats-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; margin-bottom: 40px;">
+    <div class="stat-card" style="background: #e7f3fe; padding: 20px; border-radius: 8px; text-align: center;">
+      <h4>Vocabulário Total</h4>
+      <p style="font-size: 2em; font-weight: bold; margin: 0;">{{ vocabulario_total }}</p>
+    </div>
+    <div class="stat-card" style="background: #e5f7f0; padding: 20px; border-radius: 8px; text-align: center;">
+      <h4>Palavras em Revisão</h4>
+      <p style="font-size: 2em; font-weight: bold; margin: 0;">{{ palavras_em_revisao }}</p>
+    </div>
+    <div class="stat-card" style="background: #fff4e5; padding: 20px; border-radius: 8px; text-align: center;">
+      <h4>Palavras que Já Sabia</h4>
+      <p style="font-size: 2em; font-weight: bold; margin: 0;">{{ palavras_ja_sabe }}</p>
+    </div>
+    <div class="stat-card" style="background: #f3e8fd; padding: 20px; border-radius: 8px; text-align: center;">
+      <h4>Palavras Aprendidas com Esforço</h4>
+      <p style="font-size: 2em; font-weight: bold; margin: 0;">{{ palavras_aprendidas_com_esforco }}</p>
+    </div>
+  </div>
+
+  <h3>Evolução do Vocabulário</h3>
+  <canvas id="progressChart"></canvas>
+
+  <hr style="margin-top: 40px;">
+  <a href="{% url 'home' %}" class="button">Voltar para a Página Inicial</a>
+{% endblock %}
+
+
+{% block script %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  // Espera a página carregar para executar o script
+  document.addEventListener('DOMContentLoaded', function() {
+    
+    // Faz uma requisição para a nossa API de dados
+    fetch("{% url 'chart_data' %}")
+      .then(response => response.json())
+      .then(data => {
+        
+        const ctx = document.getElementById('progressChart').getContext('2d');
+        
+        new Chart(ctx, {
+          type: 'line', // Tipo de gráfico
+          data: {
+            labels: data.labels, // As datas vêm da nossa API
+            datasets: [{
+              label: 'Total de Palavras Aprendidas',
+              data: data.data, // Os números vêm da nossa API
+              borderColor: 'dodgerblue',
+              backgroundColor: 'rgba(30, 144, 255, 0.1)',
+              fill: true,
+              tension: 0.1
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      });
+  });
+</script>
+{% endblock script %}
