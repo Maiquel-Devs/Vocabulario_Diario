@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Meus Treinos Pendentes{% endblock %}
+
+{% block content %}
+  <h2>Meus Treinos Pendentes</h2>
+
+  <p>Aqui estão os conjuntos de palavras que você errou e precisa praticar.</p>
+
+  <div class="training-list" style="margin-top: 20px;">
+    {% for set in training_sets %}
+      <div class="training-item" style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <strong>Conjunto do dia: {{ set.creation_date|date:"d/m/Y" }}</strong>
+          <small style="display: block; color: #777;">{{ set.words.count }} palavras para treinar</small>
+        </div>
+        <a href="{% url 'training_session' set.id %}" class="button">Iniciar Treino</a>
+      </div>
+    {% empty %}
+      <p>Você não tem nenhum conjunto de treino pendente. Ótimo trabalho!</p>
+    {% endfor %}
+  </div>
+
+  <hr style="margin-top: 40px;">
+  <a href="{% url 'dashboard' %}" class="button">Voltar ao Painel</a>
+{% endblock %}

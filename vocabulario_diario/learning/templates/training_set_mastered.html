@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Conjunto Completo!{% endblock %}
+
+{% block content %}
+  <h2>Parabéns, você completou este conjunto!</h2>
+
+  <div style="text-align: center; margin-top: 30px;">
+    <h3>🧠 Ótimo trabalho de memorização! 🧠</h3>
+    <p>Você acertou todas as palavras do conjunto de treino do dia {{ training_set.creation_date|date:"d/m/Y" }}.</p>
+    <p>Agora, confirme que você realmente dominou este conjunto para que as palavras voltem ao seu estudo normal.</p>
+
+    <button id="master-set-btn" data-set-id="{{ training_set.id }}" class="button">Dominei este Conjunto</button>
+
+    <a href="{% url 'training_set_list' %}" style="display: block; margin-top: 20px;">Voltar para a lista de treinos</a>
+  </div>
+{% endblock %}
+
+
+{% block script %}
+<script>
+  document.getElementById('master-set-btn').addEventListener('click', function() {
+    const button = this;
+    const setId = button.dataset.setId;
+
+    // Pegamos o token CSRF de um cookie, uma forma robusta
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    button.disabled = true;
+    button.textContent = "Processando...";
+
+    fetch("{% url 'master_set' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: JSON.stringify({ 'set_id': setId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        alert('Parabéns! Conjunto dominado. Você será redirecionado para a lista de treinos.');
+        window.location.href = "{% url 'training_set_list' %}";
+      } else {
+        alert('Ocorreu um erro. Tente novamente.');
+        button.disabled = false;
+        button.textContent = "Dominei este Conjunto";
+      }
+    });
+  });
+</script>
+{% endblock script %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações da Conta{% endblock %}
+
+{% block content %}
+  <h2>Configurações da Conta</h2>
+  
+  <p>Olá, {{ user.username }}. Aqui você pode gerenciar suas preferências.</p>
+
+  <hr style="margin-top: 30px; margin-bottom: 30px;">
+
+  <div>
+    <h3>Zona de Perigo</h3>
+    <p>A ação abaixo é irreversível. Todo o seu progresso de aprendizado, incluindo palavras aprendidas e estatísticas, será apagado permanentemente.</p>
+    <button id="reset-progress-btn" style="background-color: #d9534f; border-color: #d43f3a;">Reiniciar Progresso</button>
+  </div>
+
+  <hr style="margin-top: 40px;">
+  <a href="{% url 'home' %}" class="button">Voltar para a Página Inicial</a>
+{% endblock %}
+
+
+{% block script %}
+<script>
+  document.getElementById('reset-progress-btn').addEventListener('click', function() {
+    const isSure = confirm('Você tem certeza que deseja apagar todo o seu progresso? Esta ação é permanente.');
+
+    if (isSure) {
+      const isAbsolutelySure = confirm('Confirmação final: Realmente apagar todo o histórico de aprendizado? Não será possível recuperar.');
+
+      if (isAbsolutelySure) {
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        fetch("{% url 'reset_progress' %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            // --- CORREÇÃO 1: Limpando o placar do navegador ---
+            localStorage.removeItem('placarData');
+            localStorage.removeItem('placarAcertos');
+            localStorage.removeItem('placarErros');
+
+            alert('Seu progresso foi reiniciado com sucesso! Você será redirecionado para a página inicial.');
+            window.location.href = "{% url 'home' %}";
+          }
+        });
+      }
+    }
+  });
+</script>
+{% endblock script %}

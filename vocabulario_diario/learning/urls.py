@@ -6,24 +6,29 @@ urlpatterns = [
     # Demos a ela o nome 'home', o mesmo que usamos no LOGIN_REDIRECT_URL.
     path('', views.HomeView.as_view(), name='home'),
 
-    # NOVA ROTA PARA A SESSÃO DE ESTUDO
-    path('sessao-de-estudo/', views.StudySessionView.as_view(), name='study_session'),
-
-    # NOVA ROTA PARA A NOSSA API
-    path('api/check-answer/', views.CheckAnswerView.as_view(), name='check_answer'),
-
-    # NOVA ROTA PARA A API DE CORREÇÃO MANUAL
-    path('api/mark-as-correct/', views.MarkAsCorrectView.as_view(), name='mark_as_correct'),
-
-    # NOVA ROTA PARA O PAINEL DE CONTROLE
+    # ROTA PARA O PAINEL DE CONTROLE
     path('painel/', views.DashboardView.as_view(), name='dashboard'),
 
-    # NOVA ROTA PARA A API DO GRÁFICO
+    # ROTA PARA A LISTA DE CONJUNTOS DE TREINO
+    path('treinos/', views.TrainingSetListView.as_view(), name='training_set_list'),
+
+    # ROTA PARA A SESSÃO DE ESTUDO
+    path('sessao-de-estudo/', views.StudySessionView.as_view(), name='study_session'),
+
+    # ROTA PARA A SESSÃO DE TREINO (com ID do conjunto)
+    path('sessao-de-treino/<int:set_id>/', views.TrainingSessionView.as_view(), name='training_session'),
+    
+    # --- ROTAS DE API ---
+    
+    # API PARA VERIFICAR A RESPOSTA DO USUÁRIO (durante sessão de estudo ou treino)
+    path('api/check-answer/', views.CheckAnswerView.as_view(), name='check_answer'),
+
+    # API PARA MARCAR UMA PALAVRA COMO CORRETA MANUALMENTE
+    path('api/mark-as-correct/', views.MarkAsCorrectView.as_view(), name='mark_as_correct'),
+
+    # API PARA MARCAR UM CONJUNTO COMO DOMINADO
+    path('api/master-set/', views.MasterSetView.as_view(), name='master_set'),
+
+    # API PARA OBTER OS DADOS DO GRÁFICO DO PAINEL
     path('api/chart-data/', views.DashboardChartDataView.as_view(), name='chart_data'),
-
-    # NOVA ROTA PARA A SESSÃO DE TREINO
-    path('sessao-de-treino/', views.TrainingSessionView.as_view(), name='training_session'),
-
-    # NOVA ROTA PARA A API DE REMOÇÃO DO TREINO
-    path('api/remove-from-training/', views.RemoveFromTrainingView.as_view(), name='remove_from_training'),
 ]

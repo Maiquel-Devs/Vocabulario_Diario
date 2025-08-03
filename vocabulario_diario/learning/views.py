@@ -1,269 +1,179 @@
+# learning/views.py
+
+import json
+from datetime import timedelta
+from django.utils import timezone
 from django.shortcuts import render, get_object_or_404
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from .models import Word, UserWordStatus
 from django.http import JsonResponse
-from django.utils import timezone
-from datetime import timedelta
 from django.db.models import Count
 from django.db.models.functions import TruncDate
-import json 
+from .models import Word, UserWordStatus, TrainingSet
 
+# --- VIEWS DE PÁGINAS ---
 
-# Usamos TemplateView para uma página simples que só precisa de um template.
-# Usamos LoginRequiredMixin para garantir que apenas usuários logados possam ver esta página.
 class HomeView(LoginRequiredMixin, TemplateView):
     template_name = 'home.html'
 
-
-# VIEW INTELIGENTE DA SESSÃO DE ESTUDO
 class StudySessionView(LoginRequiredMixin, View):
-
     def get(self, request, *args, **kwargs):
         user = request.user
-        
-        # --- LÓGICA DE ESCOLHA DA PALAVRA (com prioridade de revisão) ---
-
-        # PRIORIDADE 1: Buscar palavras que precisam de revisão (SRS - Spaced Repetition System)
-        # Aqui selecionamos palavras com status "Em Revisao" ou "Dominado",
-        # cuja data de revisão (`next_review_date`) já venceu.
-        # Usamos `order_by('next_review_date')` para priorizar a revisão mais antiga.
         palavras_para_revisar = UserWordStatus.objects.filter(
-            user=user,
-            status__in=['Em Revisao', 'Dominado'],
-            next_review_date__lte=timezone.now()
-        ).order_by('next_review_date')  # Palavra mais "urgente" de revisar primeiro
+            user=user, status__in=['Em Revisao', 'Dominado'], next_review_date__lte=timezone.now()
+        ).order_by('next_review_date')
 
-        word_to_study = None  # Inicializamos como None; será preenchido com a palavra selecionada.
-
+        word_to_study = None
         if palavras_para_revisar.exists():
-            # Se há palavras para revisar, selecionamos a primeira (mais antiga)
             word_to_study = palavras_para_revisar.first().word
         else:
-            # PRIORIDADE 2: Buscar palavras novas (caso a meta diária permita - essa lógica virá depois)
-            
-            # Encontrar todas as palavras que o usuário já viu (via status).
-            palavras_ja_vistas_ids = UserWordStatus.objects.filter(
-                user=user
-            ).values_list('word__id', flat=True)
-
-            # Selecionar uma nova palavra aleatória (que ainda não foi vista pelo usuário).
-            # O uso de `.order_by('?')` faz o banco escolher uma palavra aleatoriamente.
+            palavras_ja_vistas_ids = UserWordStatus.objects.filter(user=user).values_list('word__id', flat=True)
             palavra_nova = Word.objects.exclude(id__in=palavras_ja_vistas_ids).order_by('?').first()
-            
             if palavra_nova:
                 word_to_study = palavra_nova
-
-        # Caso não haja nenhuma palavra para revisar ou aprender, a sessão está finalizada.
+        
         if not word_to_study:
             return render(request, 'session_finished.html')
 
-        # Contexto enviado para o template HTML do flashcard.
         context = {
-            'word': word_to_study
+            'word': word_to_study,
+            'is_training_session': False
         }
-        
         return render(request, 'flashcard.html', context)
 
-    
+class TrainingSetListView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        training_sets = TrainingSet.objects.filter(user=request.user, is_mastered=False).order_by('creation_date')
+        context = {'training_sets': training_sets}
+        return render(request, 'training_set_list.html', context)
 
-class CheckAnswerView(LoginRequiredMixin, View):
-    
-    def post(self, request, *args, **kwargs):
-        # Carregamos os dados enviados pelo JavaScript
-        data = json.loads(request.body)
-        word_id = data.get('word_id')
-        user_answer = data.get('user_answer')
-
-        # Buscamos a palavra correta no banco de dados
-        word = get_object_or_404(Word, id=word_id)
-
-        # Lógica de verificação flexível (simplificada por enquanto)
-        is_correct = user_answer.strip().lower() == word.text_portuguese.strip().lower()
-        
-        # --- LÓGICA DE SALVAR O PROGRESSO ---
-        # Usamos get_or_create para criar um novo status se ele não existir,
-        # ou pegar o existente se o usuário já viu esta palavra.
-        status, created = UserWordStatus.objects.get_or_create(
-            user=request.user,
-            word=word
-        )
-
-        # Se a resposta estiver correta...
-        if is_correct:
-            if created: # Se foi a primeira vez que ele viu a palavra e acertou
-                status.status = 'Acertou de Primeira'
-            
-            status.status = 'Dominado' # Simplificando por enquanto, vamos refinar depois
-            status.consecutive_correct_answers += 1
-            # Lógica simples de SRS: próxima revisão daqui a N dias
-            # onde N é o número de acertos consecutivos.
-            status.next_review_date = timezone.now() + timedelta(days=status.consecutive_correct_answers)
-            status.is_in_training_deck = False
-
-        # Se a resposta estiver errada...
-        else:
-            status.status = 'Em Revisao'
-            status.consecutive_correct_answers = 0 # Zera a contagem
-            status.next_review_date = timezone.now() + timedelta(minutes=10) # Revisar logo
-            status.is_in_training_deck = True
-
-        status.save() # Salva as alterações no banco de dados!
-
-        # Retornamos uma resposta em formato JSON
-        return JsonResponse({'correct': is_correct, 'correct_answer': word.text_portuguese})
-    
-
-# NOVA VIEW PARA O BOTÃO "DEFINIR COMO CORRETA"
-class MarkAsCorrectView(LoginRequiredMixin, View):
-    
-    def post(self, request, *args, **kwargs):
-        data = json.loads(request.body)
-        word_id = data.get('word_id')
-
-        word = get_object_or_404(Word, id=word_id)
-
-        # Encontramos o status da palavra que foi marcada como 'Em Revisao'
-        status, created = UserWordStatus.objects.get_or_create(
-            user=request.user,
-            word=word
-        )
-        
-        # Revertemos o erro. A lógica é a mesma de um acerto.
-        status.status = 'Dominado' # Simplificando por enquanto
-        status.consecutive_correct_answers += 1
-        status.next_review_date = timezone.now() + timedelta(days=status.consecutive_correct_answers)
-        status.is_in_training_deck = False
-
-        status.save()
-
-        # Retornamos uma resposta de sucesso
-        return JsonResponse({'status': 'success', 'message': 'Progresso atualizado com sucesso.'})
-    
-
-# NOVA VIEW PARA O PAINEL DE CONTROLE
-class DashboardView(LoginRequiredMixin, View):
-
+class TrainingSessionView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         user = request.user
-
-        # Fazemos as consultas no banco de dados para calcular as estatísticas
+        set_id = kwargs.get('set_id')
+        training_set = get_object_or_404(TrainingSet, id=set_id, user=user)
+        palavras_para_treinar = UserWordStatus.objects.filter(training_set=training_set)
         
-        # Palavras que o usuário acertou na primeira vez que viu
-        palavras_ja_sabe = UserWordStatus.objects.filter(
-            user=user, 
-            status='Acertou de Primeira'
-        ).count()
+        session_key = f'training_set_{set_id}_correct_words'
+        palavras_corretas_na_sessao = request.session.get(session_key, [])
+        palavras_pendentes = palavras_para_treinar.exclude(word__id__in=palavras_corretas_na_sessao)
 
-        # Palavras que o usuário errou, treinou e agora dominou
-        palavras_aprendidas_com_esforco = UserWordStatus.objects.filter(
-            user=user, 
-            status='Dominado'
-        ).count()
-        
-        # Palavras que estão ativamente no ciclo de revisão
-        palavras_em_revisao = UserWordStatus.objects.filter(
-            user=user, 
-            status='Em Revisao'
-        ).count()
+        if not palavras_pendentes.exists():
+            context = {'training_set': training_set}
+            request.session.pop(session_key, None)
+            return render(request, 'training_set_mastered.html', context)
 
-        # O vocabulário total é a soma das que ele já sabia com as que aprendeu
-        vocabulario_total = palavras_ja_sabe + palavras_aprendidas_com_esforco
+        palavra_selecionada_status = palavras_pendentes.order_by('?').first()
+        word_to_study = palavra_selecionada_status.word
+        context = {
+            'word': word_to_study,
+            'is_training_session': True,
+            'set_id': set_id,
+        }
+        return render(request, 'flashcard.html', context)
 
+class DashboardView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        palavras_ja_sabe = UserWordStatus.objects.filter(user=user, status='Acertou de Primeira').count()
+        palavras_dominadas = UserWordStatus.objects.filter(user=user, status='Dominado').count()
+        palavras_em_revisao = TrainingSet.objects.filter(user=user, is_mastered=False).count()
+        vocabulario_total = palavras_ja_sabe + palavras_dominadas
         context = {
             'palavras_ja_sabe': palavras_ja_sabe,
-            'palavras_aprendidas_com_esforco': palavras_aprendidas_com_esforco,
+            'palavras_aprendidas_com_esforco': palavras_dominadas,
             'palavras_em_revisao': palavras_em_revisao,
             'vocabulario_total': vocabulario_total,
         }
-
         return render(request, 'dashboard.html', context)
- 
-    
-# NOVA VIEW PARA FORNECER DADOS PARA O GRÁFICO
-class DashboardChartDataView(LoginRequiredMixin, View):
 
-    def get(self, request, *args, **kwargs):
-        user = request.user
+# --- VIEWS DE API (RETORNAM JSON) ---
 
-        # Agrupamos os status por data de criação para ver o progresso diário
-        # Contamos apenas as palavras que foram movidas para 'Acertou de Primeira' ou 'Dominado'
-        progress_data = UserWordStatus.objects.filter(
-            user=user,
-            status__in=['Acertou de Primeira', 'Dominado']
-        ).annotate(
-            date=TruncDate('next_review_date') # Usamos a data da próxima revisão para marcar o dia
-        ).values('date').annotate(
-            words_learned_on_day=Count('id')
-        ).order_by('date')
-
-        # Formatamos os dados para o gráfico
-        labels = [] # As datas (ex: '2025-08-02')
-        cumulative_data = [] # O número acumulado de palavras
-        total_learned = 0
-
-        for entry in progress_data:
-            if entry['date']: # Ignora entradas sem data
-                total_learned += entry['words_learned_on_day']
-                labels.append(entry['date'].strftime('%d/%m/%Y'))
-                cumulative_data.append(total_learned)
-
-        data = {
-            'labels': labels,
-            'data': cumulative_data,
-        }
-
-        return JsonResponse(data)
-    
-
-# NOVA VIEW PARA A SESSÃO DE TREINO FOCADO
-class TrainingSessionView(LoginRequiredMixin, View):
-
-    def get(self, request, *args, **kwargs):
-        user = request.user
-
-        # A lógica aqui é mais simples: buscamos apenas as palavras
-        # que estão marcadas para o deck de treino.
-        palavras_para_treinar = UserWordStatus.objects.filter(
-            user=user,
-            is_in_training_deck=True
-        )
-
-        # Se não houver palavras para treinar, mostramos uma mensagem.
-        if not palavras_para_treinar.exists():
-            return render(request, 'training_finished.html')
-
-        # Pegamos uma palavra aleatória da lista de treino
-        palavra_selecionada_status = palavras_para_treinar.order_by('?').first()
-        word_to_study = palavra_selecionada_status.word
-
-        context = {
-            'word': word_to_study,
-            # Indicamos que esta é uma sessão de treino
-            'is_training_session': True, 
-        }
-        
-        # Nós podemos reutilizar o mesmo template do flashcard!
-        return render(request, 'flashcard.html', context)
-    
-
-# NOVA VIEW PARA REMOVER UMA PALAVRA DO TREINO
-class RemoveFromTrainingView(LoginRequiredMixin, View):
-
+class CheckAnswerView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         data = json.loads(request.body)
         word_id = data.get('word_id')
+        user_answer = data.get('user_answer')
+        word = get_object_or_404(Word, id=word_id)
+        is_correct = user_answer.strip().lower() == word.text_portuguese.strip().lower()
+        status, created = UserWordStatus.objects.get_or_create(user=request.user, word=word)
 
-        # Encontramos o status da palavra e o atualizamos
-        status = get_object_or_404(UserWordStatus, user=request.user, word_id=word_id)
+        if is_correct:
+            if status.training_set:
+                status.consecutive_correct_answers += 1
+                set_id = status.training_set.id
+                session_key = f'training_set_{set_id}_correct_words'
+                palavras_corretas_na_sessao = request.session.get(session_key, [])
+                if status.word.id not in palavras_corretas_na_sessao:
+                    palavras_corretas_na_sessao.append(status.word.id)
+                request.session[session_key] = palavras_corretas_na_sessao
+            else:
+                status.status = 'Acertou de Primeira' if created else 'Dominado'
+                status.consecutive_correct_answers += 1
+                status.next_review_date = timezone.now() + timedelta(days=status.consecutive_correct_answers)
+                status.training_set = None
+        else:
+            status.status = 'Em Revisao'
+            status.consecutive_correct_answers = 0 
+            status.next_review_date = timezone.now() + timedelta(minutes=10)
+            
+            # --- LÓGICA CORRIGIDA PARA EVITAR DUPLICADOS ---
+            # 1. Tenta encontrar um conjunto de treino NÃO dominado para hoje.
+            today_set = TrainingSet.objects.filter(
+                user=request.user,
+                creation_date=timezone.now().date(),
+                is_mastered=False
+            ).first()
 
-        # Tiramos ela do deck de treino e consideramos como "graduada"
-        status.is_in_training_deck = False
-        # Vamos ser conservadores e apenas zerar os acertos, para que o SRS normal decida o futuro dela
-        status.consecutive_correct_answers = 0
-        # Marcamos para uma revisão normal em 1 dia para confirmar
-        status.next_review_date = timezone.now() + timedelta(days=1)
-
+            # 2. Se não encontrar, cria um novo.
+            if not today_set:
+                today_set = TrainingSet.objects.create(user=request.user, creation_date=timezone.now().date())
+            
+            status.training_set = today_set
+        
         status.save()
+        return JsonResponse({'correct': is_correct, 'correct_answer': word.text_portuguese})
 
-        return JsonResponse({'status': 'success', 'message': 'Palavra removida do treino.'})
+class MarkAsCorrectView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        data = json.loads(request.body)
+        word_id = data.get('word_id')
+        word = get_object_or_404(Word, id=word_id)
+        status, created = UserWordStatus.objects.get_or_create(user=request.user, word=word)
+        status.status = 'Dominado'
+        status.consecutive_correct_answers = 1
+        status.next_review_date = timezone.now() + timedelta(days=1)
+        status.training_set = None
+        status.save()
+        return JsonResponse({'status': 'success'})
+
+class MasterSetView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        data = json.loads(request.body)
+        set_id = data.get('set_id')
+        training_set = get_object_or_404(TrainingSet, id=set_id, user=request.user)
+        training_set.is_mastered = True
+        training_set.save()
+        words_in_set = UserWordStatus.objects.filter(training_set=training_set)
+        for status in words_in_set:
+            status.status = 'Dominado'
+            status.training_set = None
+            status.consecutive_correct_answers = 1
+            status.next_review_date = timezone.now() + timedelta(days=1)
+            status.save()
+        return JsonResponse({'status': 'success'})
+
+class DashboardChartDataView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        progress_data = UserWordStatus.objects.filter(user=user, status__in=['Acertou de Primeira', 'Dominado']).exclude(next_review_date__isnull=True).annotate(date=TruncDate('next_review_date')).values('date').annotate(words_learned_on_day=Count('id')).order_by('date')
+        labels = []
+        cumulative_data = []
+        total_learned = 0
+        for entry in progress_data:
+            if entry['date']:
+                total_learned += entry['words_learned_on_day']
+                labels.append(entry['date'].strftime('%d/%m/%Y'))
+                cumulative_data.append(total_learned)
+        data = {'labels': labels, 'data': cumulative_data}
+        return JsonResponse(data)
