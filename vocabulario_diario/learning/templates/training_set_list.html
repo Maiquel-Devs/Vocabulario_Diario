@@ -4,10 +4,24 @@
 
 {% block content %}
   <h2>Meus Treinos Pendentes</h2>
-
+  
   <p>Aqui estão os conjuntos de palavras que você errou e precisa praticar.</p>
 
-  <div class="training-list" style="margin-top: 20px;">
+  <div class="goal-progress" style="margin-top: 20px; margin-bottom: 30px; background: #f1f1f1; padding: 15px; border-radius: 8px;">
+    <h4>Progresso da Meta de Domínio de Hoje</h4>
+    <p style="font-size: 1.2em; font-weight: bold; margin: 5px 0;">
+      {{ progresso_hoje }} / {{ daily_goal }} palavras dominadas
+    </p>
+    <div class="progress-bar-container" style="background: #e0e0e0; border-radius: 10px; height: 20px; width: 100%;">
+      <div 
+        id="goal-progress-bar"
+        class="progress-bar-fill" 
+        style="background: #4caf50; height: 100%; border-radius: 10px;"
+        data-progress="{{ progresso_percentagem|floatformat:0 }}"
+      ></div>
+    </div>
+  </div>
+  <div class="training-list">
     {% for set in training_sets %}
       <div class="training-item" style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
         <div>
@@ -24,3 +38,23 @@
   <hr style="margin-top: 40px;">
   <a href="{% url 'dashboard' %}" class="button">Voltar ao Painel</a>
 {% endblock %}
+
+
+{% block script %}
+<script>
+  // Este script é executado quando a página termina de carregar
+  document.addEventListener('DOMContentLoaded', function() {
+    // 1. Encontra a barra de progresso pelo seu novo ID
+    const progressBar = document.getElementById('goal-progress-bar');
+    
+    // 2. Se a barra existir na página...
+    if (progressBar) {
+      // 3. ...lê o valor do progresso que o Django colocou no atributo 'data-progress'
+      const progressValue = progressBar.dataset.progress;
+      
+      // 4. ...e aplica o estilo de largura usando JavaScript, que sempre usa o formato correto.
+      progressBar.style.width = progressValue + '%';
+    }
+  });
+</script>
+{% endblock script %}

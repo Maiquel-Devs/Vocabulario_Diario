@@ -100,11 +100,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 answerForm.style.display = 'none';
                 const feedbackSection = document.getElementById('feedback-section');
+                const formattedCorrectAnswer = data.correct_answer.charAt(0).toUpperCase() + data.correct_answer.slice(1);
+                const formattedUserAnswer = userAnswer.charAt(0).toUpperCase() + userAnswer.slice(1);
+
                 if (data.correct) {
                     if (!IS_TRAINING_SESSION) window.salvarAcerto();
-                    feedbackSection.innerHTML = `<h3 style="color: green;">✅ Correto!</h3><a href="${proximoCartaoUrl}" class="button">Ir para o próximo cartão</a>`;
+                    feedbackSection.innerHTML = `<h3 style="color: green;">✅ Correto!</h3><p>Você digitou: "<strong>${formattedUserAnswer}</strong>"</p><p>A resposta é "<strong>${formattedCorrectAnswer}</strong>".</p><a href="${proximoCartaoUrl}" class="button" style="margin-top: 10px;">Ir para o próximo cartão</a>`;
                 } else {
-                    feedbackSection.innerHTML = `<h3 style="color: red;">❌ Incorreto.</h3><p>A resposta certa era: "<strong>${data.correct_answer}</strong>"</p><div style="margin-top: 15px;"><button id="define-correct-btn" data-word-id="${wordId}" class="button">Definir como correta</button><button id="confirm-error-btn" class="button" style="background-color: #c9302c;">Confirmar Erro</button></div>`;
+                    feedbackSection.innerHTML = `<h3 style="color: red;">❌ Incorreto.</h3><p>Você digitou: "<strong>${formattedUserAnswer}</strong>"</p><p>A resposta certa era: "<strong>${formattedCorrectAnswer}</strong>"</p><div style="margin-top: 15px;"><button id="define-correct-btn" data-word-id="${wordId}" class="button">Definir como correta</button><button id="confirm-error-btn" class="button" style="background-color: #c9302c;">Confirmar Erro</button></div>`;
                 }
             });
         });

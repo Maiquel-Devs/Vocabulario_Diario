@@ -86,3 +86,16 @@ class UserWordStatus(models.Model):
     # Representação legível para admin, debug ou logs
     def __str__(self):
         return f"{self.user.username} - {self.word.text_english}: {self.status}"
+
+
+# NOVO MODELO ADICIONADO NO FINAL DO FICHEIRO
+class DailyMasteryLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField()
+    mastered_words_count = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ('user', 'date') # Garante um registo por utilizador por dia
+
+    def __str__(self):
+        return f"Registo de {self.user.username} em {self.date}: {self.mastered_words_count} palavras"

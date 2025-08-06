@@ -9,9 +9,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.db.models import Count
 from django.db.models.functions import TruncDate
-from .models import Word, UserWordStatus, TrainingSet
-
-# --- VIEWS DE PÁGINAS ---
+from .models import Word, UserWordStatus, TrainingSet, DailyMasteryLog
 
 class HomeView(LoginRequiredMixin, TemplateView):
     template_name = 'home.html'
@@ -22,7 +20,6 @@ class StudySessionView(LoginRequiredMixin, View):
         palavras_para_revisar = UserWordStatus.objects.filter(
             user=user, status__in=['Em Revisao', 'Dominado'], next_review_date__lte=timezone.now()
         ).order_by('next_review_date')
-
         word_to_study = None
         if palavras_para_revisar.exists():
             word_to_study = palavras_para_revisar.first().word
@@ -31,20 +28,26 @@ class StudySessionView(LoginRequiredMixin, View):
             palavra_nova = Word.objects.exclude(id__in=palavras_ja_vistas_ids).order_by('?').first()
             if palavra_nova:
                 word_to_study = palavra_nova
-        
         if not word_to_study:
             return render(request, 'session_finished.html')
-
-        context = {
-            'word': word_to_study,
-            'is_training_session': False
-        }
+        context = {'word': word_to_study, 'is_training_session': False}
         return render(request, 'flashcard.html', context)
 
 class TrainingSetListView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        training_sets = TrainingSet.objects.filter(user=request.user, is_mastered=False).order_by('creation_date')
-        context = {'training_sets': training_sets}
+        user = request.user
+        training_sets = TrainingSet.objects.filter(
+            user=user, 
+            is_mastered=False,
+            words__isnull=False
+        ).distinct().order_by('creation_date')
+        daily_goal = user.profile.daily_goal
+        log_hoje = DailyMasteryLog.objects.filter(user=user, date=timezone.now().date()).first()
+        progresso_hoje = log_hoje.mastered_words_count if log_hoje else 0
+        progresso_percentagem = int((progresso_hoje / daily_goal) * 100) if daily_goal > 0 else 0
+        if progresso_percentagem > 100:
+            progresso_percentagem = 100
+        context = {'training_sets': training_sets, 'daily_goal': daily_goal, 'progresso_hoje': progresso_hoje, 'progresso_percentagem': progresso_percentagem}
         return render(request, 'training_set_list.html', context)
 
 class TrainingSessionView(LoginRequiredMixin, View):
@@ -53,23 +56,16 @@ class TrainingSessionView(LoginRequiredMixin, View):
         set_id = kwargs.get('set_id')
         training_set = get_object_or_404(TrainingSet, id=set_id, user=user)
         palavras_para_treinar = UserWordStatus.objects.filter(training_set=training_set)
-        
         session_key = f'training_set_{set_id}_correct_words'
         palavras_corretas_na_sessao = request.session.get(session_key, [])
         palavras_pendentes = palavras_para_treinar.exclude(word__id__in=palavras_corretas_na_sessao)
-
         if not palavras_pendentes.exists():
             context = {'training_set': training_set}
             request.session.pop(session_key, None)
             return render(request, 'training_set_mastered.html', context)
-
         palavra_selecionada_status = palavras_pendentes.order_by('?').first()
         word_to_study = palavra_selecionada_status.word
-        context = {
-            'word': word_to_study,
-            'is_training_session': True,
-            'set_id': set_id,
-        }
+        context = {'word': word_to_study, 'is_training_session': True, 'set_id': set_id}
         return render(request, 'flashcard.html', context)
 
 class DashboardView(LoginRequiredMixin, View):
@@ -77,17 +73,10 @@ class DashboardView(LoginRequiredMixin, View):
         user = request.user
         palavras_ja_sabe = UserWordStatus.objects.filter(user=user, status='Acertou de Primeira').count()
         palavras_dominadas = UserWordStatus.objects.filter(user=user, status='Dominado').count()
-        palavras_em_revisao = TrainingSet.objects.filter(user=user, is_mastered=False).count()
+        palavras_em_revisao = UserWordStatus.objects.filter(user=user, training_set__is_mastered=False).count()
         vocabulario_total = palavras_ja_sabe + palavras_dominadas
-        context = {
-            'palavras_ja_sabe': palavras_ja_sabe,
-            'palavras_aprendidas_com_esforco': palavras_dominadas,
-            'palavras_em_revisao': palavras_em_revisao,
-            'vocabulario_total': vocabulario_total,
-        }
+        context = {'palavras_ja_sabe': palavras_ja_sabe, 'palavras_aprendidas_com_esforco': palavras_dominadas, 'palavras_em_revisao': palavras_em_revisao, 'vocabulario_total': vocabulario_total}
         return render(request, 'dashboard.html', context)
-
-# --- VIEWS DE API (RETORNAM JSON) ---
 
 class CheckAnswerView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
@@ -97,7 +86,6 @@ class CheckAnswerView(LoginRequiredMixin, View):
         word = get_object_or_404(Word, id=word_id)
         is_correct = user_answer.strip().lower() == word.text_portuguese.strip().lower()
         status, created = UserWordStatus.objects.get_or_create(user=request.user, word=word)
-
         if is_correct:
             if status.training_set:
                 status.consecutive_correct_answers += 1
@@ -114,23 +102,12 @@ class CheckAnswerView(LoginRequiredMixin, View):
                 status.training_set = None
         else:
             status.status = 'Em Revisao'
-            status.consecutive_correct_answers = 0 
+            status.consecutive_correct_answers = 0
             status.next_review_date = timezone.now() + timedelta(minutes=10)
-            
-            # --- LÓGICA CORRIGIDA PARA EVITAR DUPLICADOS ---
-            # 1. Tenta encontrar um conjunto de treino NÃO dominado para hoje.
-            today_set = TrainingSet.objects.filter(
-                user=request.user,
-                creation_date=timezone.now().date(),
-                is_mastered=False
-            ).first()
-
-            # 2. Se não encontrar, cria um novo.
+            today_set = TrainingSet.objects.filter(user=request.user, creation_date=timezone.now().date(), is_mastered=False).first()
             if not today_set:
                 today_set = TrainingSet.objects.create(user=request.user, creation_date=timezone.now().date())
-            
             status.training_set = today_set
-        
         status.save()
         return JsonResponse({'correct': is_correct, 'correct_answer': word.text_portuguese})
 
@@ -143,7 +120,7 @@ class MarkAsCorrectView(LoginRequiredMixin, View):
         status.status = 'Dominado'
         status.consecutive_correct_answers = 1
         status.next_review_date = timezone.now() + timedelta(days=1)
-        status.training_set = None
+        status.training_set = None # Remove a palavra de qualquer conjunto
         status.save()
         return JsonResponse({'status': 'success'})
 
@@ -152,6 +129,13 @@ class MasterSetView(LoginRequiredMixin, View):
         data = json.loads(request.body)
         set_id = data.get('set_id')
         training_set = get_object_or_404(TrainingSet, id=set_id, user=request.user)
+        word_count = UserWordStatus.objects.filter(training_set=training_set).count()
+        if word_count > 0:
+            log, created = DailyMasteryLog.objects.get_or_create(
+                user=request.user, date=timezone.now().date(), defaults={'mastered_words_count': 0}
+            )
+            log.mastered_words_count += word_count
+            log.save()
         training_set.is_mastered = True
         training_set.save()
         words_in_set = UserWordStatus.objects.filter(training_set=training_set)
@@ -167,9 +151,7 @@ class DashboardChartDataView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         user = request.user
         progress_data = UserWordStatus.objects.filter(user=user, status__in=['Acertou de Primeira', 'Dominado']).exclude(next_review_date__isnull=True).annotate(date=TruncDate('next_review_date')).values('date').annotate(words_learned_on_day=Count('id')).order_by('date')
-        labels = []
-        cumulative_data = []
-        total_learned = 0
+        labels, cumulative_data, total_learned = [], [], 0
         for entry in progress_data:
             if entry['date']:
                 total_learned += entry['words_learned_on_day']

@@ -1,33 +1,48 @@
+# users/views.py
+
+from django.shortcuts import render
 from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
-from django.views import generic
-from django.views.generic import TemplateView
+from django.views import generic, View
+from django.views.generic import UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views import View
-from learning.models import UserWordStatus
 from django.http import JsonResponse
-import json
+from learning.models import UserWordStatus, TrainingSet, DailyMasteryLog
+from .forms import ProfileForm
+from .models import Profile
 
 class SignUpView(generic.CreateView):
-    # O formulário que vamos usar é o formulário de criação de usuário padrão do Django.
-    # Ele já vem com os campos de "usuário", "senha" e "confirmação de senha".
     form_class = UserCreationForm
-    
-    # Em caso de sucesso no cadastro, o usuário será redirecionado para a página de login.
-    # 'reverse_lazy' é a forma correta de fazer isso em class-based views.
     success_url = reverse_lazy('login')
-    
-    # O arquivo HTML que será usado para renderizar esta página.
     template_name = 'registration/signup.html'
 
-
-class SettingsView(LoginRequiredMixin, TemplateView):
+class SettingsView(LoginRequiredMixin, UpdateView):
+    model = Profile
+    form_class = ProfileForm
     template_name = 'registration/settings.html'
+    success_url = reverse_lazy('settings')
 
+    def get_object(self, queryset=None):
+        profile, created = Profile.objects.get_or_create(user=self.request.user)
+        return profile
 
-# NOVA VIEW PARA A API DE RESET
+    def form_valid(self, form):
+        from django.contrib import messages
+        messages.success(self.request, 'A sua meta foi atualizada com sucesso!')
+        return super().form_valid(form)
+
 class ResetProgressView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
-        # Apaga TODOS os registros de progresso para o usuário logado
-        UserWordStatus.objects.filter(user=request.user).delete()
+        user_to_reset = request.user
+        UserWordStatus.objects.filter(user=user_to_reset).delete()
+        TrainingSet.objects.filter(user=user_to_reset).delete()
+        DailyMasteryLog.objects.filter(user=user_to_reset).delete()
+        
+        try:
+            profile = user_to_reset.profile
+            profile.daily_goal = 10
+            profile.save()
+        except Profile.DoesNotExist:
+            Profile.objects.create(user=user_to_reset, daily_goal=10)
+
         return JsonResponse({'status': 'success', 'message': 'Progresso reiniciado com sucesso.'})
