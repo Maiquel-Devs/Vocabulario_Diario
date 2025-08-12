@@ -4,9 +4,17 @@
 
 {% block content %}
   <h2>Entrar</h2>
+  
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Entrar</button>
   </form>
+
+  <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+    <p>Ainda não tem uma conta? 
+      <a href="{% url 'signup' %}">Crie uma aqui</a>.
+    </p>
+  </div>
+
 {% endblock %}

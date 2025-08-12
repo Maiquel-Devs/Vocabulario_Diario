@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from learning.models import UserWordStatus, TrainingSet, DailyMasteryLog
 from .forms import ProfileForm
 from .models import Profile
+from django.contrib.auth import logout
 
 class SignUpView(generic.CreateView):
     form_class = UserCreationForm
@@ -46,3 +47,9 @@ class ResetProgressView(LoginRequiredMixin, View):
             Profile.objects.create(user=user_to_reset, daily_goal=10)
 
         return JsonResponse({'status': 'success', 'message': 'Progresso reiniciado com sucesso.'})
+   
+    
+class LogoutAPIView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        logout(request)
+        return JsonResponse({'status': 'success', 'message': 'Logout realizado com sucesso.'})

@@ -8,18 +8,64 @@
   <p>Você está logado e pronto para começar a sua jornada de aprendizado.</p>
 
   <p>
-    <a href="{% url 'study_session' %}">Iniciar Sessão de Estudo</a>
+    <a href="{% url 'study_session' %}" class="button">Iniciar Sessão de Estudo</a>
+  </p>
+  
+  <p>
+    <a href="{% url 'dashboard' %}" class="button">Ver meu Painel de Controle</a>
   </p>
 
   <p>
-    <a href="{% url 'dashboard' %}">Ver meu Painel de Controle</a>
+    <a href="{% url 'settings' %}" class="button">Configurações da Conta</a>
   </p>
+  
+  <form id="logout-form" method="post">
+    {% csrf_token %}
+    <button type="submit" class="button" style="background-color: #f0ad4e; border-color: #eea236;">Sair</button>
+  </form>
 
-  <p>
-    <a href="{% url 'settings' %}">Configurações da Conta</a>
-  </p>
-
-  <p>
-    <a href="{% url 'logout' %}">Sair</a>
-  </p>
 {% endblock %}
+
+
+{% block script %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const logoutForm = document.getElementById('logout-form');
+
+    if (logoutForm) {
+        logoutForm.addEventListener('submit', function(event) {
+            // Previne o envio normal do formulário
+            event.preventDefault();
+
+            const csrfToken = this.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+            // Mostra uma mensagem de "a sair..." no botão
+            const logoutButton = this.querySelector('button');
+            logoutButton.disabled = true;
+            logoutButton.textContent = 'A sair...';
+
+            // Chama a nossa nova API de logout
+            fetch("{% url 'api_logout' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Se o logout foi bem-sucedido, redireciona para a página de login
+                    window.location.href = "{% url 'login' %}";
+                } else {
+                    // Caso algo dê errado, reativa o botão
+                    alert('Ocorreu um erro ao tentar sair. Tente novamente.');
+                    logoutButton.disabled = false;
+                    logoutButton.textContent = 'Sair';
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock script %}

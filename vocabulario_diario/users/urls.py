@@ -24,4 +24,7 @@ urlpatterns = [
 
     # NOVA ROTA PARA A API DE RESET
     path('api/reset-progress/', user_views.ResetProgressView.as_view(), name='reset_progress'),
+
+    # NOVA ROTA PARA A API DE LOGOUT
+    path('api/logout/', user_views.LogoutAPIView.as_view(), name='api_logout'),
 ]

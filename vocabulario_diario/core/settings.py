@@ -131,5 +131,6 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+LOGIN_URL = 'login' #  Adicione esta linha no final para dizer ao Django qual é a nossa página de login
 LOGIN_REDIRECT_URL = 'home'   # Após um login bem-sucedido, redirecione o usuário para a URL com o nome home".
 LOGOUT_REDIRECT_URL = 'login' # Após o logout, redirecione o usuário de volta para a tela de login".

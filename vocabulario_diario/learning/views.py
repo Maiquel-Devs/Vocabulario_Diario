@@ -117,11 +117,31 @@ class MarkAsCorrectView(LoginRequiredMixin, View):
         word_id = data.get('word_id')
         word = get_object_or_404(Word, id=word_id)
         status, created = UserWordStatus.objects.get_or_create(user=request.user, word=word)
+        
+        # --- LÓGICA CORRIGIDA E FINAL ---
+
+        # 1. Se a palavra pertencia a um conjunto de treino, adiciona-a à lista de
+        #    acertos da SESSÃO para evitar que ela repita (corrige o loop infinito).
+        if status.training_set:
+            set_id = status.training_set.id
+            session_key = f'training_set_{set_id}_correct_words'
+            palavras_corretas_na_sessao = request.session.get(session_key, [])
+            if status.word.id not in palavras_corretas_na_sessao:
+                palavras_corretas_na_sessao.append(status.word.id)
+            request.session[session_key] = palavras_corretas_na_sessao
+        
+        # 2. Atualiza o status permanente da palavra no banco de dados.
         status.status = 'Dominado'
         status.consecutive_correct_answers = 1
         status.next_review_date = timezone.now() + timedelta(days=1)
-        status.training_set = None # Remove a palavra de qualquer conjunto
+        
+        # 3. **NÃO** remove mais a palavra do seu conjunto de treino aqui.
+        #    A linha `status.training_set = None` foi removida.
+        
+        # 4. **NÃO** mexe mais no DailyMasteryLog. A meta só conta ao dominar o conjunto.
+        
         status.save()
+        
         return JsonResponse({'status': 'success'})
 
 class MasterSetView(LoginRequiredMixin, View):
