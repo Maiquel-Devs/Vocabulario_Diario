@@ -56,16 +56,29 @@ class TrainingSessionView(LoginRequiredMixin, View):
         set_id = kwargs.get('set_id')
         training_set = get_object_or_404(TrainingSet, id=set_id, user=user)
         palavras_para_treinar = UserWordStatus.objects.filter(training_set=training_set)
+        
         session_key = f'training_set_{set_id}_correct_words'
         palavras_corretas_na_sessao = request.session.get(session_key, [])
         palavras_pendentes = palavras_para_treinar.exclude(word__id__in=palavras_corretas_na_sessao)
+
+        # --- LÓGICA DO CONTADOR ADICIONADA AQUI ---
+        total_palavras_no_conjunto = palavras_para_treinar.count()
+        palavras_respondidas = len(palavras_corretas_na_sessao)
+
         if not palavras_pendentes.exists():
             context = {'training_set': training_set}
             request.session.pop(session_key, None)
             return render(request, 'training_set_mastered.html', context)
+
         palavra_selecionada_status = palavras_pendentes.order_by('?').first()
         word_to_study = palavra_selecionada_status.word
-        context = {'word': word_to_study, 'is_training_session': True, 'set_id': set_id}
+        context = {
+            'word': word_to_study,
+            'is_training_session': True,
+            'set_id': set_id,
+            'total_palavras_no_conjunto': total_palavras_no_conjunto,
+            'palavras_respondidas': palavras_respondidas,
+        }
         return render(request, 'flashcard.html', context)
 
 class DashboardView(LoginRequiredMixin, View):
@@ -115,13 +128,7 @@ class MarkAsCorrectView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         data = json.loads(request.body)
         word_id = data.get('word_id')
-        word = get_object_or_404(Word, id=word_id)
-        status, created = UserWordStatus.objects.get_or_create(user=request.user, word=word)
-        
-        # --- LÓGICA CORRIGIDA E FINAL ---
-
-        # 1. Se a palavra pertencia a um conjunto de treino, adiciona-a à lista de
-        #    acertos da SESSÃO para evitar que ela repita (corrige o loop infinito).
+        status = get_object_or_404(UserWordStatus, user=request.user, word_id=word_id)
         if status.training_set:
             set_id = status.training_set.id
             session_key = f'training_set_{set_id}_correct_words'
@@ -129,19 +136,12 @@ class MarkAsCorrectView(LoginRequiredMixin, View):
             if status.word.id not in palavras_corretas_na_sessao:
                 palavras_corretas_na_sessao.append(status.word.id)
             request.session[session_key] = palavras_corretas_na_sessao
-        
-        # 2. Atualiza o status permanente da palavra no banco de dados.
-        status.status = 'Dominado'
-        status.consecutive_correct_answers = 1
-        status.next_review_date = timezone.now() + timedelta(days=1)
-        
-        # 3. **NÃO** remove mais a palavra do seu conjunto de treino aqui.
-        #    A linha `status.training_set = None` foi removida.
-        
-        # 4. **NÃO** mexe mais no DailyMasteryLog. A meta só conta ao dominar o conjunto.
-        
+        else:
+            status.status = 'Dominado'
+            status.consecutive_correct_answers = 1
+            status.next_review_date = timezone.now() + timedelta(days=1)
+            status.training_set = None
         status.save()
-        
         return JsonResponse({'status': 'success'})
 
 class MasterSetView(LoginRequiredMixin, View):

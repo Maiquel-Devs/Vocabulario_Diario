@@ -12,7 +12,12 @@
       {% endif %}
     </h2>
     
-    {% if not is_training_session %}
+    {% if is_training_session %}
+    <div class="training-progress" style="text-align: right;">
+        <span style="display: block; font-size: 0.9em;">Progresso do Conjunto:</span>
+        <span style="font-weight: bold;">{{ palavras_respondidas }} / {{ total_palavras_no_conjunto }}</span>
+    </div>
+    {% else %}
     <div class="session-score" style="text-align: right;">
       <span style="display: block; font-size: 0.9em;">Placar de Hoje:</span>
       <span title="Acertos na sessão" style="color: green; font-weight: bold;">✅ <span id="session-correct-count">0</span></span>
@@ -33,7 +38,15 @@
     <form id="answer-form">
       {% csrf_token %}
       <input type="hidden" name="word_id" value="{{ word.id }}">
-      <input type="text" id="user-answer-input" name="user_answer" placeholder="Digite sua resposta aqui" required autofocus>
+      <input 
+        type="text" 
+        id="user-answer-input" 
+        name="user_answer" 
+        placeholder="Digite sua resposta aqui" 
+        required 
+        autofocus
+        autocomplete="off" 
+      >
       <button type="submit">Verificar</button>
     </form>
     
@@ -50,7 +63,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('flashcard-container');
     if (!container) return;
-
     const proximoCartaoUrl = container.dataset.nextUrl;
     const IS_TRAINING_SESSION = container.dataset.isTraining === 'True';
     const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
@@ -59,7 +71,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const correctSpan = document.getElementById('session-correct-count');
         const incorrectSpan = document.getElementById('session-incorrect-count');
         let acertos = 0, erros = 0;
-
         const carregarPlacar = () => {
             const hoje = new Date().toLocaleDateString();
             const dataSalva = localStorage.getItem('placarData');
@@ -74,19 +85,13 @@ document.addEventListener('DOMContentLoaded', function() {
             correctSpan.textContent = acertos;
             incorrectSpan.textContent = erros;
         };
-
         window.salvarAcerto = () => { acertos++; localStorage.setItem('placarAcertos', acertos); correctSpan.textContent = acertos; };
         window.salvarErro = () => { erros++; localStorage.setItem('placarErros', erros); incorrectSpan.textContent = erros; };
-        
         carregarPlacar();
     }
 
     const handleFetch = (url, body) => {
-        return fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(body)
-        }).then(res => res.json());
+        return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }, body: JSON.stringify(body) }).then(res => res.json());
     };
 
     const answerForm = document.getElementById('answer-form');
@@ -95,14 +100,12 @@ document.addEventListener('DOMContentLoaded', function() {
             event.preventDefault();
             const userAnswer = document.getElementById('user-answer-input').value;
             const wordId = this.querySelector('input[name="word_id"]').value;
-
             handleFetch("{% url 'check_answer' %}", { 'word_id': wordId, 'user_answer': userAnswer })
             .then(data => {
                 answerForm.style.display = 'none';
                 const feedbackSection = document.getElementById('feedback-section');
                 const formattedCorrectAnswer = data.correct_answer.charAt(0).toUpperCase() + data.correct_answer.slice(1);
                 const formattedUserAnswer = userAnswer.charAt(0).toUpperCase() + userAnswer.slice(1);
-
                 if (data.correct) {
                     if (!IS_TRAINING_SESSION) window.salvarAcerto();
                     feedbackSection.innerHTML = `<h3 style="color: green;">✅ Correto!</h3><p>Você digitou: "<strong>${formattedUserAnswer}</strong>"</p><p>A resposta é "<strong>${formattedCorrectAnswer}</strong>".</p><a href="${proximoCartaoUrl}" class="button" style="margin-top: 10px;">Ir para o próximo cartão</a>`;
@@ -118,7 +121,6 @@ document.addEventListener('DOMContentLoaded', function() {
         feedbackSection.addEventListener('click', function(event) {
             const target = event.target;
             const wordId = target.dataset.wordId;
-
             if (target.id === 'define-correct-btn') {
                 if (!IS_TRAINING_SESSION) window.salvarAcerto();
                 handleFetch("{% url 'mark_as_correct' %}", { 'word_id': wordId })
