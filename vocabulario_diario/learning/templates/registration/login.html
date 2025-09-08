@@ -3,18 +3,51 @@
 {% block title %}Entrar{% endblock %}
 
 {% block content %}
-  <h2>Entrar</h2>
-  
-  <form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Entrar</button>
-  </form>
+<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="col-11 col-sm-8 col-md-6 col-lg-4">
+        
+        <div class="text-center mb-4">
+            <h1 class="text-white display-5 fw-light">Vocabulário Diário</h1>
+        </div>
+        
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-4 p-sm-5">
+                <h2 class="card-title text-center mb-4">Entrar</h2>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="id_username" class="form-label">Nome de Utilizador:</label>
+                        {{ form.username }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_password" class="form-label">Senha:</label>
+                        {{ form.password }}
+                    </div>
 
-  <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
-    <p>Ainda não tem uma conta? 
-      <a href="{% url 'signup' %}">Crie uma aqui</a>.
-    </p>
-  </div>
-
+                    {% if form.errors %}
+                        <div class="alert alert-danger p-2 small" role="alert">
+                            Por favor, verifique o seu utilizador e senha.
+                        </div>
+                    {% endif %}
+                    
+                    <button type="submit" class="btn gradient-btn text-white w-100 py-2 mt-3">Entrar</button>
+                </form>
+                
+                <div class="text-center mt-3">
+                    <a href="{% url 'signup' %}" class="text-decoration-none">Não tem conta? Cadastre-se aqui</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
+
+{% block script %}
+<script>
+    // Adiciona classes do Bootstrap aos campos do formulário do Django via JavaScript
+    document.getElementById('id_username').classList.add('form-control');
+    document.getElementById('id_password').classList.add('form-control');
+</script>
+{% endblock script %}
