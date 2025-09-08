@@ -1,12 +1,52 @@
 {% extends "base.html" %}
 
-{% block title %}Criar uma Conta{% endblock %}
+{% block title %}Criar Conta{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auth-card {
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    .signup-vertical-center {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-  <h2>Criar uma Nova Conta</h2>
-  <form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Cadastrar</button>
-  </form>
+<div class="container signup-vertical-center">
+    <div class="auth-card w-100">
+        <div class="text-center mb-4">
+            <h1 class="text-white display-5 fw-light">Vocabulário Diário</h1>
+        </div>
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-4 p-sm-5">
+                <h2 class="card-title text-center mb-4">Criar Conta</h2>
+                <form method="post" autocomplete="off">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_username" class="form-label">Nome de Utilizador:</label>
+                        <input type="text" name="username" class="form-control" id="id_username" placeholder="Digite seu nome de usuário" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_password1" class="form-label">Senha:</label>
+                        <input type="password" name="password1" class="form-control" id="id_password1" placeholder="Digite sua senha" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_password2" class="form-label">Confirmar Senha:</label>
+                        <input type="password" name="password2" class="form-control" id="id_password2" placeholder="Confirme sua senha" required>
+                    </div>
+                    <button type="submit" class="btn gradient-btn text-white w-100 py-2 mt-3">Cadastrar</button>
+                </form>
+                <div class="text-center mt-3">
+                    <a href="{% url 'login' %}" class="text-decoration-none">Já tem conta? Entre aqui</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

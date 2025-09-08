@@ -2,39 +2,42 @@
 
 {% block title %}Entrar{% endblock %}
 
+{% block extra_css %}
+<style>
+    .auth-card {
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    .login-vertical-center {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
-    <div class="col-11 col-sm-8 col-md-6 col-lg-4">
-        
+<div class="container login-vertical-center">
+    <div class="auth-card w-100">
         <div class="text-center mb-4">
             <h1 class="text-white display-5 fw-light">Vocabulário Diário</h1>
         </div>
-        
         <div class="card shadow-lg border-0">
             <div class="card-body p-4 p-sm-5">
                 <h2 class="card-title text-center mb-4">Entrar</h2>
-                
-                <form method="post">
+                <form method="post" autocomplete="off">
                     {% csrf_token %}
-                    
                     <div class="mb-3">
                         <label for="id_username" class="form-label">Nome de Utilizador:</label>
-                        {{ form.username }}
+                        <input type="text" name="username" class="form-control" id="id_username" placeholder="Digite seu nome de usuário" required autofocus>
                     </div>
                     <div class="mb-3">
                         <label for="id_password" class="form-label">Senha:</label>
-                        {{ form.password }}
+                        <input type="password" name="password" class="form-control" id="id_password" placeholder="Digite sua senha" required>
                     </div>
-
-                    {% if form.errors %}
-                        <div class="alert alert-danger p-2 small" role="alert">
-                            Por favor, verifique o seu utilizador e senha.
-                        </div>
-                    {% endif %}
-                    
                     <button type="submit" class="btn gradient-btn text-white w-100 py-2 mt-3">Entrar</button>
                 </form>
-                
                 <div class="text-center mt-3">
                     <a href="{% url 'signup' %}" class="text-decoration-none">Não tem conta? Cadastre-se aqui</a>
                 </div>
@@ -43,11 +46,3 @@
     </div>
 </div>
 {% endblock %}
-
-{% block script %}
-<script>
-    // Adiciona classes do Bootstrap aos campos do formulário do Django via JavaScript
-    document.getElementById('id_username').classList.add('form-control');
-    document.getElementById('id_password').classList.add('form-control');
-</script>
-{% endblock script %}
